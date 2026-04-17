@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Convenience Store 3D Walkthrough</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #1a1a2e; font-family: 'Segoe UI', sans-serif; }
+  canvas { display: block; }
+  
+  #controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10, 10, 30, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 14px 24px;
+    color: #ccc;
+    font-size: 13px;
+    z-index: 100;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  #controls kbd {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #fff;
+  }
+  #info {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10, 10, 30, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 14px 28px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    z-index: 100;
+    letter-spacing: 0.5px;
+  }
+  #viewBtns {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+  }
+  .vbtn {
+    background: rgba(10, 10, 30, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 10px 18px;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .vbtn:hover { background: rgba(60, 60, 120, 0.85); border-color: rgba(255,255,255,0.3); }
+  .vbtn.active { background: rgba(80, 80, 180, 0.85); border-color: rgba(150,150,255,0.5); }
+</style>
+</head>
+<body>
+
+<div id="info">Convenience Store — 3D Walkthrough</div>
+
+<div id="viewBtns">
+  <button class="vbtn active" onclick="setView('orbit')">Orbit View</button>
+  <button class="vbtn" onclick="setView('topdown')">Top Down</button>
+  <button class="vbtn" onclick="setView('interior')">Interior View</button>
+  <button class="vbtn" onclick="setView('front')">Front View</button>
+</div>
+
+<div id="controls">
+  <span><kbd>Left Click</kbd> + Drag to Rotate</span>
+  <span><kbd>Right Click</kbd> + Drag to Pan</span>
+  <span><kbd>Scroll</kbd> to Zoom</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ==================== SCENE SETUP ====================
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xd4dbe3);
+scene.fog = new THREE.Fog(0xd4dbe3, 200, 500);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(100, 80, 120);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+// Lights
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(80, 120, 60);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 300;
+dirLight.shadow.camera.left = -120;
+dirLight.shadow.camera.right = 120;
+dirLight.shadow.camera.top = 120;
+dirLight.shadow.camera.bottom = -120;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xb0c4de, 0.3);
+fillLight.position.set(-40, 60, -30);
+scene.add(fillLight);
+
+// Interior lights (warm fluorescent)
+const interiorLight1 = new THREE.PointLight(0xfff5e6, 0.8, 80);
+interiorLight1.position.set(20, 9, -15);
+scene.add(interiorLight1);
+const interiorLight2 = new THREE.PointLight(0xfff5e6, 0.8, 80);
+interiorLight2.position.set(-15, 9, -15);
+scene.add(interiorLight2);
+
+// ==================== MATERIALS ====================
+const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+const wallExtMat = new THREE.MeshStandardMaterial({ color: 0xe8e0d4, roughness: 0.7 });
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xd9cfc2, roughness: 0.6 });
+const floorTileMat = new THREE.MeshStandardMaterial({ color: 0xc8bfb2, roughness: 0.5 });
+const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.9, side: THREE.DoubleSide });
+const counterMat = new THREE.MeshStandardMaterial({ color: 0x6b6b6b, roughness: 0.3, metalness: 0.2 });
+const gondolaMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.4, metalness: 0.3 });
+const shelfMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.5 });
+const glassMat = new THREE.MeshStandardMaterial({ color: 0xaaddff, transparent: true, opacity: 0.25, roughness: 0.1, metalness: 0.1 });
+const coolerMat = new THREE.MeshStandardMaterial({ color: 0xd0d8e0, roughness: 0.3, metalness: 0.4 });
+const coolerGlassMat = new THREE.MeshStandardMaterial({ color: 0x88bbee, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1 });
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.9 });
+const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b7d6b, roughness: 0.8 });
+const signMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.4, metalness: 0.3 });
+const doorMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.4 });
+
+// Scale: 1 unit = 1 foot. Store #100 main area is ~80.5' wide x 53' deep  
+// We'll center the store roughly at origin. Ignoring suites 101 and 102 (left rental properties)
+// Front of store faces +Z direction (south, with storefront glass)
+// Store footprint: approx 80.5' W x 69' D (including back areas)
+
+const W = 80.5; // width (X axis)
+const D = 69;   // depth (Z axis) 
+const H = 12;   // wall height
+const wallT = 0.5; // wall thickness
+
+// Store offset so front-center is near origin
+const ox = -W/2;
+const oz = -D/2;
+
+// ==================== GROUND PLANE ====================
+const groundGeo = new THREE.PlaneGeometry(400, 400);
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.1;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Parking lot lines
+for (let i = 0; i < 8; i++) {
+  const lineGeo = new THREE.PlaneGeometry(0.3, 18);
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+  const line = new THREE.Mesh(lineGeo, lineMat);
+  line.rotation.x = -Math.PI / 2;
+  line.position.set(ox + 10 + i * 9, 0.01, oz + D + 20);
+  scene.add(line);
+}
+
+// ==================== HELPER FUNCTIONS ====================
+function makeWall(x, z, w, d, h, mat, castS = true) {
+  const geo = new THREE.BoxGeometry(w, h || H, d);
+  const mesh = new THREE.Mesh(geo, mat || wallMat);
+  mesh.position.set(x + w/2, (h || H)/2, z + d/2);
+  mesh.castShadow = castS;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function makeBox(x, y, z, w, h, d, mat) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y + h/2, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+// ==================== FLOOR ====================
+const floorGeo = new THREE.PlaneGeometry(W, D);
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.set(0, 0, 0);
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Tile pattern overlay
+for (let ix = 0; ix < W; ix += 4) {
+  for (let iz = 0; iz < D; iz += 4) {
+    if ((Math.floor(ix/4) + Math.floor(iz/4)) % 2 === 0) {
+      const tGeo = new THREE.PlaneGeometry(4, 4);
+      const tile = new THREE.Mesh(tGeo, floorTileMat);
+      tile.rotation.x = -Math.PI / 2;
+      tile.position.set(ox + ix + 2, 0.02, oz + iz + 2);
+      tile.receiveShadow = true;
+      scene.add(tile);
+    }
+  }
+}
+
+// ==================== CEILING ====================
+const ceilGeo = new THREE.PlaneGeometry(W, D);
+const ceil = new THREE.Mesh(ceilGeo, ceilingMat);
+ceil.rotation.x = Math.PI / 2;
+ceil.position.set(0, H, 0);
+scene.add(ceil);
+
+// Ceiling light fixtures
+for (let ix = 0; ix < 4; ix++) {
+  for (let iz = 0; iz < 3; iz++) {
+    const fixGeo = new THREE.BoxGeometry(4, 0.3, 1.5);
+    const fixMat = new THREE.MeshStandardMaterial({ color: 0xffffee, emissive: 0xffffdd, emissiveIntensity: 0.5 });
+    const fix = new THREE.Mesh(fixGeo, fixMat);
+    fix.position.set(ox + 12 + ix * 18, H - 0.2, oz + 12 + iz * 20);
+    scene.add(fix);
+  }
+}
+
+// ==================== EXTERIOR WALLS ====================
+// Back wall (north, Z = oz)
+makeWall(ox, oz, W, wallT, H, wallExtMat);
+
+// Right wall (east, X = ox + W)
+makeWall(ox + W - wallT, oz, wallT, D, H, wallExtMat);
+
+// Left wall (west, X = ox) — only the store portion
+makeWall(ox, oz, wallT, D, H, wallExtMat);
+
+// Front wall (south, Z = oz + D) — with storefront opening
+// Storefront is ~33.7' wide, centered roughly. Let's put glass from X=ox+20 to ox+54
+const sfLeft = 20;
+const sfRight = 54;
+const sfW = sfRight - sfLeft;
+
+// Front wall left of storefront
+makeWall(ox, oz + D - wallT, sfLeft, wallT, H, wallExtMat);
+// Front wall right of storefront
+makeWall(ox + sfRight, oz + D - wallT, W - sfRight, wallT, H, wallExtMat);
+// Header above storefront
+makeWall(ox + sfLeft, oz + D - wallT, sfW, wallT, 2, wallExtMat);
+const headerAbove = scene.children[scene.children.length - 1];
+headerAbove.position.y = H - 1;
+
+// ==================== STOREFRONT GLASS ====================
+for (let i = 0; i < 4; i++) {
+  const paneW = sfW / 4;
+  const paneGeo = new THREE.PlaneGeometry(paneW - 0.5, H - 3);
+  const pane = new THREE.Mesh(paneGeo, glassMat);
+  pane.position.set(ox + sfLeft + paneW * i + paneW/2, (H-3)/2 + 0.5, oz + D - 0.2);
+  scene.add(pane);
+
+  // Glass frame
+  const frameGeo = new THREE.BoxGeometry(0.3, H - 2, 0.3);
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5 });
+  const frame = new THREE.Mesh(frameGeo, frameMat);
+  frame.position.set(ox + sfLeft + paneW * i, (H-2)/2 + 0.5, oz + D - 0.2);
+  scene.add(frame);
+}
+
+// Front door (double glass doors in the storefront)
+const doorX = ox + sfLeft + sfW/2;
+const doorGeo = new THREE.BoxGeometry(6, 8, 0.4);
+const door = new THREE.Mesh(doorGeo, doorMat);
+door.position.set(doorX, 4, oz + D);
+scene.add(door);
+
+// Door glass
+const dGlassGeo = new THREE.PlaneGeometry(2.5, 6.5);
+const dGlass1 = new THREE.Mesh(dGlassGeo, glassMat);
+dGlass1.position.set(doorX - 1.5, 4, oz + D + 0.25);
+scene.add(dGlass1);
+const dGlass2 = new THREE.Mesh(dGlassGeo, glassMat);
+dGlass2.position.set(doorX + 1.5, 4, oz + D + 0.25);
+scene.add(dGlass2);
+
+// ==================== INTERIOR WALLS ====================
+
+// Back wall divider — separates back-of-house (prep kitchen) from retail floor
+// The wall runs across most of the back, with the show kitchen / hot food on the right
+// and cooler doors on the left portion of the back wall
+const backWallZ = oz + 14; // 14' deep back-of-house area
+makeWall(ox + 18, backWallZ, W - 18, wallT, H, wallMat); // back wall from restroom area to right wall
+
+// ==================== HOT FOOD DISPLAY COUNTER (back wall, right portion) ====================
+// "display countertop with hot food cases" — spans right ~half of the back wall
+const foodCounterMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.3 });
+const hotCaseGlassMat = new THREE.MeshStandardMaterial({ color: 0xcceeff, transparent: true, opacity: 0.3, roughness: 0.05, metalness: 0.1 });
+const hotCaseFrameMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.3, metalness: 0.5 });
+const foodTrayMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, roughness: 0.2, metalness: 0.6 });
+
+// Tabletop counter base — runs from about center to the right wall along the back divider
+const foodCounterStartX = ox + 30;
+const foodCounterW = W - 30 - 2; // leave 2' gap from right wall
+makeBox(foodCounterStartX + foodCounterW/2, 0, backWallZ + 1, foodCounterW, 3, 2.5, foodCounterMat);
+
+// Glass hot food display cases on top
+for (let i = 0; i < 6; i++) {
+  const caseX = foodCounterStartX + 4 + i * 7.5;
+  if (caseX + 3 > ox + W - 3) break;
+  const caseY = 3;
+  const caseZ = backWallZ + 1;
+  const caseW = 6, caseH = 2.5, caseD = 2;
+
+  // Front glass
+  const fgGeo = new THREE.PlaneGeometry(caseW, caseH);
+  const fg = new THREE.Mesh(fgGeo, hotCaseGlassMat);
+  fg.position.set(caseX, caseY + caseH/2, caseZ + caseD/2 + 0.01);
+  scene.add(fg);
+  // Top glass (angled sneeze guard)
+  const tgGeo = new THREE.PlaneGeometry(caseW, caseD + 0.5);
+  const tg = new THREE.Mesh(tgGeo, hotCaseGlassMat);
+  tg.rotation.x = -Math.PI / 6;
+  tg.position.set(caseX, caseY + caseH + 0.3, caseZ + 0.2);
+  scene.add(tg);
+  // Side glass panels
+  const sgGeo = new THREE.PlaneGeometry(caseD, caseH);
+  const sg1 = new THREE.Mesh(sgGeo, hotCaseGlassMat);
+  sg1.rotation.y = Math.PI / 2;
+  sg1.position.set(caseX - caseW/2, caseY + caseH/2, caseZ);
+  scene.add(sg1);
+  const sg2 = new THREE.Mesh(sgGeo, hotCaseGlassMat);
+  sg2.rotation.y = Math.PI / 2;
+  sg2.position.set(caseX + caseW/2, caseY + caseH/2, caseZ);
+  scene.add(sg2);
+  // Frame corners
+  for (let fx = -1; fx <= 1; fx += 2) {
+    const frmGeo = new THREE.BoxGeometry(0.15, caseH, 0.15);
+    const frm = new THREE.Mesh(frmGeo, hotCaseFrameMat);
+    frm.position.set(caseX + fx * caseW/2, caseY + caseH/2, caseZ + caseD/2);
+    scene.add(frm);
+  }
+  // Stainless tray
+  makeBox(caseX, caseY, caseZ, caseW - 0.3, 0.15, caseD - 0.3, foodTrayMat);
+  // Food items
+  const foodColors = [0xd4890a, 0xb5651d, 0xcc4422, 0xe8a020];
+  for (let fi = 0; fi < 3; fi++) {
+    const foodGeo = new THREE.BoxGeometry(1.2, 0.6, 1);
+    const foodMt = new THREE.MeshStandardMaterial({ color: foodColors[(i + fi) % foodColors.length], roughness: 0.8 });
+    const food = new THREE.Mesh(foodGeo, foodMt);
+    food.position.set(caseX - 1.5 + fi * 1.5, caseY + 0.5, caseZ);
+    scene.add(food);
+  }
+  // Warm heat lamp glow
+  const warmLight = new THREE.PointLight(0xffaa44, 0.25, 8);
+  warmLight.position.set(caseX, caseY + caseH - 0.3, caseZ);
+  scene.add(warmLight);
+}
+
+// ==================== GROCERY STORE BEVERAGE COOLERS ====================
+const bevCoolerFrameMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.3, metalness: 0.5 });
+const bevCoolerBodyMat = new THREE.MeshStandardMaterial({ color: 0xe0e4e8, roughness: 0.4, metalness: 0.3 });
+const bevGlassMat = new THREE.MeshStandardMaterial({ color: 0x99ccee, transparent: true, opacity: 0.28, roughness: 0.02, metalness: 0.05 });
+
+// -- Helper: cooler facing +Z (doors face south, body against back/north wall) --
+function makeBeverageCooler(cx, cz, numDoors, facingZ) {
+  const doorW = 3;
+  const totalW = numDoors * doorW;
+  const coolerH = 8;
+  const coolerD = 3;
+  makeBox(cx, 0, cz, totalW, coolerH, coolerD, bevCoolerBodyMat);
+  makeBox(cx, coolerH, cz, totalW + 0.3, 0.4, coolerD + 0.2, bevCoolerFrameMat);
+  makeBox(cx, 0, cz, totalW + 0.3, 0.5, coolerD + 0.2, bevCoolerFrameMat);
+  for (let d = 0; d < numDoors; d++) {
+    const doorCenterX = cx - totalW/2 + doorW/2 + d * doorW;
+    const doorFaceZ = cz + (facingZ > 0 ? coolerD/2 + 0.05 : -coolerD/2 - 0.05);
+    const dfGeo = new THREE.BoxGeometry(doorW + 0.15, coolerH - 0.5, 0.2);
+    const df = new THREE.Mesh(dfGeo, bevCoolerFrameMat);
+    df.position.set(doorCenterX, coolerH/2, doorFaceZ);
+    scene.add(df);
+    const gpGeo = new THREE.PlaneGeometry(doorW - 0.6, coolerH - 1.5);
+    const gp = new THREE.Mesh(gpGeo, bevGlassMat);
+    gp.position.set(doorCenterX, coolerH/2 + 0.2, doorFaceZ + (facingZ > 0 ? 0.15 : -0.15));
+    scene.add(gp);
+    const handleGeo = new THREE.BoxGeometry(0.12, 3, 0.3);
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.7, roughness: 0.2 });
+    const handle = new THREE.Mesh(handleGeo, handleMat);
+    handle.position.set(doorCenterX + doorW/2 - 0.5, coolerH/2, doorFaceZ + (facingZ > 0 ? 0.3 : -0.3));
+    scene.add(handle);
+    const bevColors = [0xcc0000, 0x0044aa, 0x00aa44, 0xffcc00, 0xff6600, 0x8800cc];
+    for (let sh = 0; sh < 5; sh++) {
+      const shelfY = 1 + sh * 1.4;
+      const shGeo = new THREE.BoxGeometry(doorW - 0.4, 0.08, coolerD - 0.6);
+      const shMat = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.3 });
+      const shelf = new THREE.Mesh(shGeo, shMat);
+      shelf.position.set(doorCenterX, shelfY, cz);
+      scene.add(shelf);
+      for (let b = 0; b < 4; b++) {
+        const bottleGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.9, 6);
+        const bottleMat = new THREE.MeshStandardMaterial({ color: bevColors[(d+sh+b)%bevColors.length], roughness: 0.4 });
+        const bottle = new THREE.Mesh(bottleGeo, bottleMat);
+        bottle.position.set(doorCenterX - 1 + b*0.65, shelfY + 0.5, cz + (facingZ > 0 ? 0.5 : -0.5));
+        scene.add(bottle);
+      }
+    }
+  }
+  const coolLight = new THREE.PointLight(0x88bbff, 0.2, 10);
+  coolLight.position.set(cx, coolerH - 1, cz);
+  scene.add(coolLight);
+}
+
+// -- Helper: cooler facing +X (doors face east, body against left/west wall) --
+function makeBeverageCoolerWall(cx, cz, numDoors) {
+  const doorW = 3;
+  const totalLen = numDoors * doorW;
+  const coolerH = 8;
+  const coolerD = 3;
+  makeBox(cx, 0, cz, coolerD, coolerH, totalLen, bevCoolerBodyMat);
+  makeBox(cx, coolerH, cz, coolerD + 0.2, 0.4, totalLen + 0.3, bevCoolerFrameMat);
+  makeBox(cx, 0, cz, coolerD + 0.2, 0.5, totalLen + 0.3, bevCoolerFrameMat);
+  for (let d = 0; d < numDoors; d++) {
+    const doorCenterZ = cz - totalLen/2 + doorW/2 + d * doorW;
+    const doorFaceX = cx + coolerD/2 + 0.05;
+    const dfGeo = new THREE.BoxGeometry(0.2, coolerH - 0.5, doorW + 0.15);
+    const df = new THREE.Mesh(dfGeo, bevCoolerFrameMat);
+    df.position.set(doorFaceX, coolerH/2, doorCenterZ);
+    scene.add(df);
+    const gpGeo = new THREE.PlaneGeometry(doorW - 0.6, coolerH - 1.5);
+    const gp = new THREE.Mesh(gpGeo, bevGlassMat);
+    gp.rotation.y = Math.PI / 2;
+    gp.position.set(doorFaceX + 0.15, coolerH/2 + 0.2, doorCenterZ);
+    scene.add(gp);
+    const handleGeo = new THREE.BoxGeometry(0.3, 3, 0.12);
+    const handleMat2 = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.7, roughness: 0.2 });
+    const handle = new THREE.Mesh(handleGeo, handleMat2);
+    handle.position.set(doorFaceX + 0.3, coolerH/2, doorCenterZ + doorW/2 - 0.5);
+    scene.add(handle);
+    const bevColors = [0xcc0000, 0x0044aa, 0x00aa44, 0xffcc00, 0xff6600, 0x8800cc];
+    for (let sh = 0; sh < 5; sh++) {
+      const shelfY = 1 + sh * 1.4;
+      const shGeo = new THREE.BoxGeometry(coolerD - 0.6, 0.08, doorW - 0.4);
+      const shMat2 = new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.3 });
+      const shelf = new THREE.Mesh(shGeo, shMat2);
+      shelf.position.set(cx, shelfY, doorCenterZ);
+      scene.add(shelf);
+      for (let b = 0; b < 4; b++) {
+        const bottleGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.9, 6);
+        const bottleMat2 = new THREE.MeshStandardMaterial({ color: bevColors[(d+sh+b)%bevColors.length], roughness: 0.4 });
+        const bottle = new THREE.Mesh(bottleGeo, bottleMat2);
+        bottle.position.set(cx + 0.5, shelfY + 0.5, doorCenterZ - 1 + b*0.65);
+        scene.add(bottle);
+      }
+    }
+  }
+  const coolLight = new THREE.PointLight(0x88bbff, 0.2, 10);
+  coolLight.position.set(cx, coolerH - 1, cz);
+  scene.add(coolLight);
+}
+
+// BACK WALL cooler doors (left portion of back wall) — "Grocery store style cooler doors"
+// These sit against the back divider wall, doors face into the store (+Z)
+makeBeverageCooler(ox + 10, backWallZ + 2, 3, 1);  // left section
+makeBeverageCooler(ox + 22, backWallZ + 2, 3, 1);  // center-left section
+
+// LEFT WALL cooler doors — "Grocery store style cooler doors" running down the left wall
+// These sit against the left wall, doors face into the store (+X)
+makeBeverageCoolerWall(ox + 2.5, oz + 18, 3);   // upper-left
+makeBeverageCoolerWall(ox + 2.5, oz + 30, 3);   // mid-left
+makeBeverageCoolerWall(ox + 2.5, oz + 42, 4);   // lower-left (longer section)
+
+// ==================== POS COUNTER (right wall) ====================
+// "Countertop with POS registers and credit card machines"
+// Long counter running along the entire right wall
+const posCounterMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.25, metalness: 0.3 });
+const posCounterX = ox + W - 4; // 4' from right wall
+const posCounterStartZ = oz + 18;
+const posCounterEndZ = oz + D - 4;
+const posCounterLen = posCounterEndZ - posCounterStartZ;
+
+// Counter base — long tabletop along right wall
+makeBox(posCounterX, 0, posCounterStartZ + posCounterLen/2, 3, 3, posCounterLen, posCounterMat);
+
+// Shelving/display behind counter (against the right wall)
+for (let si = 0; si < 5; si++) {
+  makeBox(ox + W - 1.2, 0, posCounterStartZ + 3 + si * (posCounterLen/5), 1.5, 7, posCounterLen/5 - 1, shelfMat);
+}
+
+// POS Register stations on counter (spaced along the length)
+const posScreenMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.5 });
+const posDisplayMat = new THREE.MeshStandardMaterial({ color: 0x2244aa, emissive: 0x112244, emissiveIntensity: 0.4, roughness: 0.3 });
+
+for (let reg = 0; reg < 4; reg++) {
+  const regX = posCounterX;
+  const regY = 3; // on top of counter
+  const regZ = posCounterStartZ + 5 + reg * 9;
+
+  // POS monitor base/stand
+  const baseGeo = new THREE.BoxGeometry(0.8, 0.2, 0.8);
+  const base = new THREE.Mesh(baseGeo, posScreenMat);
+  base.position.set(regX, regY + 0.1, regZ);
+  scene.add(base);
+  // Monitor neck
+  const neckGeo = new THREE.BoxGeometry(0.15, 1.2, 0.15);
+  const neck = new THREE.Mesh(neckGeo, posScreenMat);
+  neck.position.set(regX, regY + 0.8, regZ);
+  scene.add(neck);
+  // Monitor screen (facing -X into store)
+  const screenGeo = new THREE.BoxGeometry(0.12, 1.5, 2);
+  const screen = new THREE.Mesh(screenGeo, posScreenMat);
+  screen.position.set(regX - 0.2, regY + 1.8, regZ);
+  screen.castShadow = true;
+  scene.add(screen);
+  // Screen display (glowing, facing customer)
+  const dispGeo = new THREE.PlaneGeometry(1.7, 1.2);
+  const disp = new THREE.Mesh(dispGeo, posDisplayMat);
+  disp.rotation.y = -Math.PI / 2;
+  disp.position.set(regX - 0.3, regY + 1.8, regZ);
+  scene.add(disp);
+  
+  // Card reader terminal (facing customer, on counter in front of POS)
+  const readerGeo = new THREE.BoxGeometry(0.8, 0.3, 0.5);
+  const readerMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.4 });
+  const reader = new THREE.Mesh(readerGeo, readerMat);
+  reader.position.set(regX - 1.2, regY + 0.15, regZ);
+  reader.rotation.z = 0.2;
+  scene.add(reader);
+  // Reader screen
+  const rScreenGeo = new THREE.PlaneGeometry(0.5, 0.35);
+  const rScreen = new THREE.Mesh(rScreenGeo, new THREE.MeshStandardMaterial({ 
+    color: 0x44aa66, emissive: 0x22aa44, emissiveIntensity: 0.3 
+  }));
+  rScreen.rotation.y = -Math.PI / 2;
+  rScreen.position.set(regX - 1.6, regY + 0.35, regZ);
+  scene.add(rScreen);
+}
+
+// ==================== GONDOLA SECTIONS (center of store) ====================
+// Centered in the open space: between left coolers (~X=ox+8) and POS counter (~X=ox+W-8)
+// and between back wall (~Z=backWallZ+6) and front restroom/entrance area (~Z=oz+D-20)
+const gondolaRows = 5;
+const gondolaLength = 30; // longer gondolas spanning more of the center
+const gondolaSpacing = 7;
+const gondolaStartX = ox + 16; // past left-wall coolers
+const gondolaStartZ = oz + 22;
+
+for (let row = 0; row < gondolaRows; row++) {
+  const gz = gondolaStartZ + row * gondolaSpacing;
+  
+  // Main gondola frame (center spine)
+  const spineGeo = new THREE.BoxGeometry(gondolaLength, 5.5, 0.3);
+  const spine = new THREE.Mesh(spineGeo, gondolaMat);
+  spine.position.set(gondolaStartX + gondolaLength/2, 2.75, gz);
+  spine.castShadow = true;
+  spine.receiveShadow = true;
+  scene.add(spine);
+
+  // Shelves on both sides (4 levels)
+  for (let shelf = 0; shelf < 4; shelf++) {
+    const sy = 0.8 + shelf * 1.3;
+    // Front shelf
+    const shGeo1 = new THREE.BoxGeometry(gondolaLength, 0.1, 1.3);
+    const sh1 = new THREE.Mesh(shGeo1, shelfMat);
+    sh1.position.set(gondolaStartX + gondolaLength/2, sy, gz + 0.8);
+    sh1.receiveShadow = true;
+    scene.add(sh1);
+    // Back shelf
+    const sh2 = new THREE.Mesh(shGeo1, shelfMat);
+    sh2.position.set(gondolaStartX + gondolaLength/2, sy, gz - 0.8);
+    sh2.receiveShadow = true;
+    scene.add(sh2);
+  }
+  
+  // End caps
+  const ecGeo = new THREE.BoxGeometry(0.3, 5.5, 3);
+  const ec1 = new THREE.Mesh(ecGeo, gondolaMat);
+  ec1.position.set(gondolaStartX, 2.75, gz);
+  ec1.castShadow = true;
+  scene.add(ec1);
+  const ec2 = new THREE.Mesh(ecGeo, gondolaMat);
+  ec2.position.set(gondolaStartX + gondolaLength, 2.75, gz);
+  ec2.castShadow = true;
+  scene.add(ec2);
+
+  // Product color blocks on shelves (visual interest)
+  const colors = [0xcc3333, 0x3366cc, 0x33aa55, 0xeeaa22, 0x9944aa, 0xdd6633];
+  for (let shelf = 0; shelf < 4; shelf++) {
+    for (let p = 0; p < 6; p++) {
+      const pw = gondolaLength / 6;
+      const prodGeo = new THREE.BoxGeometry(pw - 0.3, 1, 1);
+      const prodMat = new THREE.MeshStandardMaterial({ 
+        color: colors[(row + shelf + p) % colors.length], 
+        roughness: 0.7 
+      });
+      const prod = new THREE.Mesh(prodGeo, prodMat);
+      const sy = 0.9 + shelf * 1.3 + 0.55;
+      prod.position.set(gondolaStartX + pw * p + pw/2, sy, gz + 0.8);
+      scene.add(prod);
+    }
+  }
+}
+
+// ==================== RESTROOMS (bottom-left per diagram) ====================
+// Restrooms are in the front-left corner near the entrance
+const rrX = ox + 1;
+const rrZ = oz + D - 18; // near the front/entrance
+const rrW = 12;
+const rrD = 16;
+
+// Restroom enclosure walls
+makeWall(rrX + rrW, rrZ, wallT, rrD, H, wallMat);     // right wall of restroom block
+makeWall(rrX, rrZ, rrW, wallT, H, wallMat);             // back wall of restroom block
+// Divider between men's and women's
+makeWall(rrX, rrZ + rrD/2, rrW, wallT, H, wallMat);
+
+// ==================== ROOF ====================
+// Flat commercial roof with slight parapet
+const roofGeo = new THREE.BoxGeometry(W + 3, 0.8, D + 3);
+const roof = new THREE.Mesh(roofGeo, roofMat);
+roof.position.set(0, H + 0.4, 0);
+roof.castShadow = true;
+roof.receiveShadow = true;
+scene.add(roof);
+
+// Parapet
+const parapetH = 2;
+makeWall(ox - 1, oz - 1, W + 2, wallT, parapetH, wallExtMat).position.y += H;
+makeWall(ox - 1, oz + D, W + 2, wallT, parapetH, wallExtMat).position.y += H;
+makeWall(ox - 1, oz - 1, wallT, D + 2, parapetH, wallExtMat).position.y += H;
+makeWall(ox + W, oz - 1, wallT, D + 2, parapetH, wallExtMat).position.y += H;
+
+// ==================== EXTERIOR DETAILS ====================
+// Canopy over storefront
+const canopyGeo = new THREE.BoxGeometry(sfW + 6, 0.4, 8);
+const canopyMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.5, metalness: 0.2 });
+const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+canopy.position.set(ox + sfLeft + sfW/2, H - 1, oz + D + 4);
+canopy.castShadow = true;
+scene.add(canopy);
+
+// Canopy supports
+for (let i = 0; i < 4; i++) {
+  const pillarGeo = new THREE.CylinderGeometry(0.3, 0.3, H - 1, 8);
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.4 });
+  const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+  pillar.position.set(ox + sfLeft + 3 + i * (sfW/3), (H-1)/2, oz + D + 7);
+  pillar.castShadow = true;
+  scene.add(pillar);
+}
+
+// Sign on canopy
+const signGeo = new THREE.BoxGeometry(20, 3, 0.5);
+const sign = new THREE.Mesh(signGeo, signMat);
+sign.position.set(ox + sfLeft + sfW/2, H + 1.5, oz + D + 8);
+sign.castShadow = true;
+scene.add(sign);
+
+// ==================== ORBIT CONTROLS (manual) ====================
+let isRotating = false;
+let isPanning = false;
+let prevMouse = { x: 0, y: 0 };
+
+// Orbit state
+let orbitRadius = 140;
+let orbitTheta = Math.PI / 4;   // horizontal angle
+let orbitPhi = Math.PI / 4;     // vertical angle (from top)
+let orbitTarget = new THREE.Vector3(0, 4, 0);
+
+function updateCameraOrbit() {
+  const x = orbitTarget.x + orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta);
+  const y = orbitTarget.y + orbitRadius * Math.cos(orbitPhi);
+  const z = orbitTarget.z + orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta);
+  camera.position.set(x, y, z);
+  camera.lookAt(orbitTarget);
+}
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (e.button === 0) isRotating = true;
+  if (e.button === 2) isPanning = true;
+  prevMouse = { x: e.clientX, y: e.clientY };
+});
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  const dx = e.clientX - prevMouse.x;
+  const dy = e.clientY - prevMouse.y;
+  prevMouse = { x: e.clientX, y: e.clientY };
+  
+  if (isRotating) {
+    orbitTheta -= dx * 0.005;
+    orbitPhi -= dy * 0.005;
+    orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, orbitPhi));
+  }
+  if (isPanning) {
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    camera.getWorldDirection(right);
+    right.cross(up).normalize();
+    orbitTarget.addScaledVector(right, -dx * 0.15);
+    orbitTarget.y += dy * 0.15;
+  }
+});
+
+renderer.domElement.addEventListener('mouseup', () => { isRotating = false; isPanning = false; });
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+renderer.domElement.addEventListener('wheel', (e) => {
+  orbitRadius += e.deltaY * 0.1;
+  orbitRadius = Math.max(15, Math.min(300, orbitRadius));
+});
+
+// Touch controls
+let touchStart = null;
+let touchDist = null;
+renderer.domElement.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchDist = Math.sqrt(dx*dx + dy*dy);
+  }
+});
+renderer.domElement.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1 && touchStart) {
+    const dx = e.touches[0].clientX - touchStart.x;
+    const dy = e.touches[0].clientY - touchStart.y;
+    orbitTheta -= dx * 0.005;
+    orbitPhi -= dy * 0.005;
+    orbitPhi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, orbitPhi));
+    touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  } else if (e.touches.length === 2 && touchDist) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    orbitRadius *= touchDist / dist;
+    orbitRadius = Math.max(15, Math.min(300, orbitRadius));
+    touchDist = dist;
+  }
+}, { passive: false });
+renderer.domElement.addEventListener('touchend', () => { touchStart = null; touchDist = null; });
+
+// ==================== VIEW PRESETS ====================
+function setView(view) {
+  document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  switch(view) {
+    case 'orbit':
+      orbitRadius = 140;
+      orbitTheta = Math.PI / 4;
+      orbitPhi = Math.PI / 4;
+      orbitTarget.set(0, 4, 0);
+      break;
+    case 'topdown':
+      orbitRadius = 100;
+      orbitTheta = 0;
+      orbitPhi = 0.1;
+      orbitTarget.set(0, 0, 0);
+      break;
+    case 'interior':
+      orbitRadius = 35;
+      orbitTheta = Math.PI * 0.8;
+      orbitPhi = Math.PI / 3;
+      orbitTarget.set(0, 3, 5);
+      break;
+    case 'front':
+      orbitRadius = 100;
+      orbitTheta = Math.PI / 2;
+      orbitPhi = Math.PI / 5;
+      orbitTarget.set(0, 5, oz + D);
+      break;
+  }
+}
+
+// ==================== ANIMATE ====================
+function animate() {
+  requestAnimationFrame(animate);
+  updateCameraOrbit();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
