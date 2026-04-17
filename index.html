@@ -82,7 +82,7 @@ const iL2 = new THREE.PointLight(0xfff5e6, 0.8, 80); iL2.position.set(-15,9,-15)
 
 // ==================== MATERIALS ====================
 const wallMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.85});
-const wallExtMat = new THREE.MeshStandardMaterial({color:0xe8e0d4, roughness:0.7});
+const wallExtMat = new THREE.MeshStandardMaterial({color:0xe8e0d0, roughness:0.6}); // cream/beige like rendering
 const floorMat = new THREE.MeshStandardMaterial({color:0xd9cfc2, roughness:0.6});
 const floorTileMat = new THREE.MeshStandardMaterial({color:0xc8bfb2, roughness:0.5});
 const ceilingMat = new THREE.MeshStandardMaterial({color:0xf5f5f0, roughness:0.9, side:2});
@@ -236,109 +236,300 @@ coolerX(ox+2.5, backWallZ+15.5+13.5+6+9, 6, 1);
 
 // Restrooms are behind the back divider wall — no walls visible on the retail floor
 
-// ==================== YELLOW: SHOW KITCHEN COUNTER + HOT FOOD CASES ====================
-// Horizontal counter along back divider, right portion
+// ==================== YELLOW: SHOW KITCHEN — CURVED GLASS HOT FOOD CASES ====================
+// Like the reference: stainless steel base, curved glass front, warm-lit shelves with wrapped food
 const fcStartX = ox+30, fcEndX = ox+W-10, fcW = fcEndX-fcStartX;
 const fcZ = backWallZ+1.5;
-const fcMat = new THREE.MeshStandardMaterial({color:0x555555, roughness:0.3, metalness:0.3});
+const ssMat = new THREE.MeshStandardMaterial({color:0xb0b0b0, roughness:0.15, metalness:0.7}); // stainless steel
 
-mkBox(fcStartX+fcW/2, 0, fcZ, fcW, 3, 2.5, fcMat);
+// Stainless steel base counter
+mkBox(fcStartX+fcW/2, 0, fcZ, fcW, 2.5, 3, ssMat);
 
+// Individual curved glass display cases on top
 for(let i=0; i<5; i++){
-  const cx = fcStartX+4+i*(fcW-6)/5;
-  const cw = (fcW-8)/5-0.5, cy=3, ch=2.5, cd=2;
-  // Front glass
-  {const _m=new THREE.Mesh(new THREE.PlaneGeometry(cw,ch),hotGlassMat);_m.position.set(cx,cy+ch/2,fcZ+cd/2+0.01);scene.add(_m);}
-  // Sneeze guard
-  const tg=new THREE.Mesh(new THREE.PlaneGeometry(cw,cd+0.5),hotGlassMat);tg.rotation.x=-Math.PI/6;tg.position.set(cx,cy+ch+0.3,fcZ+0.2);scene.add(tg);
-  // Side glass
-  for(let s=-1;s<=1;s+=2){const sg=new THREE.Mesh(new THREE.PlaneGeometry(cd,ch),hotGlassMat);sg.rotation.y=Math.PI/2;sg.position.set(cx+s*cw/2,cy+ch/2,fcZ);scene.add(sg);}
-  // Corners
-  for(let s=-1;s<=1;s+=2){{const _m=new THREE.Mesh(new THREE.BoxGeometry(0.15,ch,0.15),hotFrameMat);_m.position.set(cx+s*cw/2,cy+ch/2,fcZ+cd/2);scene.add(_m);};}
-  // Tray & food
-  mkBox(cx,cy,fcZ,cw-0.3,0.15,cd-0.3,trayMat);
-  const fColors=[0xd4890a,0xb5651d,0xcc4422,0xe8a020];
-  for(let fi=0;fi<3;fi++){
-    const f=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.6,1),new THREE.MeshStandardMaterial({color:fColors[(i+fi)%4],roughness:0.8}));
-    f.position.set(cx-1.5+fi*1.5,cy+0.5,fcZ);scene.add(f);
+  const cx = fcStartX + 4 + i * (fcW-6)/5;
+  const cw = (fcW-8)/5 - 0.5;
+  const baseY = 2.5, caseH = 2.2;
+
+  // Back panel (stainless)
+  mkBox(cx, baseY, fcZ-1.2, cw, caseH, 0.15, ssMat);
+
+  // Curved glass front — approximate with 3 angled panels
+  for(let seg=0; seg<3; seg++){
+    const angle = -0.3 + seg * 0.3;
+    const segH = caseH / 3;
+    const gp = new THREE.Mesh(new THREE.PlaneGeometry(cw, segH+0.1), hotGlassMat);
+    gp.position.set(cx, baseY + segH*seg + segH/2, fcZ + 0.8 - seg*0.15);
+    gp.rotation.x = angle;
+    scene.add(gp);
   }
-  {const _m=new THREE.PointLight(0xffaa44,0.2,8);_m.position.set(cx,cy+ch-0.3,fcZ);scene.add(_m);}
+  // Top glass panel
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(cw, 1.5), hotGlassMat);
+  top.rotation.x = -Math.PI/4;
+  top.position.set(cx, baseY+caseH+0.2, fcZ);
+  scene.add(top);
+
+  // Side glass
+  for(let s=-1; s<=1; s+=2){
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(2, caseH), hotGlassMat);
+    sg.rotation.y = Math.PI/2;
+    sg.position.set(cx + s*cw/2, baseY + caseH/2, fcZ);
+    scene.add(sg);
+  }
+
+  // Shelves inside (3 levels) with wrapped food
+  for(let sh=0; sh<3; sh++){
+    const sy = baseY + 0.3 + sh * 0.7;
+    // Shelf
+    mkBox(cx, sy, fcZ, cw-0.5, 0.06, 1.5, ssMat);
+    // Wrapped food items (golden/brown packages)
+    const fColors = [0xd4890a, 0xc47a15, 0xe8a020, 0xb8860b];
+    for(let fi=0; fi<4; fi++){
+      const pkg = new THREE.Mesh(new THREE.BoxGeometry(cw/5, 0.3, 0.8),
+        new THREE.MeshStandardMaterial({color:fColors[(i+sh+fi)%4], roughness:0.6}));
+      pkg.position.set(cx - cw/3 + fi*(cw/5+0.2), sy+0.22, fcZ+0.1);
+      scene.add(pkg);
+    }
+  }
+
+  // Warm light inside
+  const wl = new THREE.PointLight(0xffaa44, 0.3, 6);
+  wl.position.set(cx, baseY+caseH-0.3, fcZ);
+  scene.add(wl);
+
+  // Stainless frame edges
+  for(let s=-1; s<=1; s+=2){
+    mkBox(cx+s*cw/2, baseY, fcZ+0.4, 0.1, caseH, 0.1, hotFrameMat);
+  }
 }
 
-// ==================== YELLOW: CASHIER POS COUNTER (right side, vertical) ====================
+// ==================== YELLOW: CASHIER POS COUNTER (right side) ====================
+// Like reference: long dark counter, candy/impulse shelves on customer side, POS on top
 const posX = ox+W-6;
 const posSZ = oz+28, posEZ = oz+D-8, posL = posEZ-posSZ;
-const posMat = new THREE.MeshStandardMaterial({color:0x5a5a5a, roughness:0.25, metalness:0.3});
+const posBlack = new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.4, metalness:0.2});
+const posTop = new THREE.MeshStandardMaterial({color:0x2a2a2a, roughness:0.2, metalness:0.3});
 
-mkBox(posX, 0, posSZ+posL/2, 4, 3, posL, posMat);
+// Main counter body
+mkBox(posX, 0, posSZ+posL/2, 4, 2.8, posL, posBlack);
+// Counter top surface (slightly wider)
+mkBox(posX, 2.8, posSZ+posL/2, 4.5, 0.2, posL+0.5, posTop);
 
-// Shelving behind (against right wall)
-for(let i=0;i<4;i++) mkBox(ox+W-1.5, 0, posSZ+3+i*(posL/4), 2, 7, posL/4-1, shelfMat);
+// Customer-facing impulse item shelves (candy, gum, mints etc.)
+const impulseMat = new THREE.MeshStandardMaterial({color:0x222222, roughness:0.5});
+for(let sh=0; sh<3; sh++){
+  const sy = 0.3 + sh * 0.85;
+  // Shelf
+  mkBox(posX-2.2, sy, posSZ+posL/2, 0.08, 0.08, posL-1, impulseMat);
+  // Candy/impulse items on shelf
+  const candyColors = [0xcc0000,0x0066cc,0xffaa00,0x00aa44,0xff4488,0x8844cc,0xff6600,0x44bbcc];
+  for(let c=0; c<Math.floor(posL/1.2); c++){
+    const cz = posSZ + 1 + c * 1.2;
+    const candy = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.9),
+      new THREE.MeshStandardMaterial({color:candyColors[(sh+c)%8], roughness:0.6}));
+    candy.position.set(posX-2.2, sy+0.35, cz);
+    scene.add(candy);
+  }
+}
 
-// POS Registers
+// Shelving behind counter (against right wall — cigarettes, tobacco, liquor)
+const behindMat = new THREE.MeshStandardMaterial({color:0x3a3a3a, roughness:0.4, metalness:0.2});
+for(let i=0;i<4;i++){
+  // Tall shelving unit
+  mkBox(ox+W-1.5, 0, posSZ+3+i*(posL/4), 2, 7, posL/4-1, behindMat);
+  // Products on shelves (colorful packs)
+  for(let sh=0;sh<5;sh++){
+    for(let p=0;p<3;p++){
+      const prod = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, posL/4-2),
+        new THREE.MeshStandardMaterial({color:[0xcc0000,0xffcc00,0x00aa44,0x2266cc,0xff6600][(i+sh+p)%5], roughness:0.5}));
+      prod.position.set(ox+W-1.5-0.3+p*0.6, 1+sh*1.2, posSZ+3+i*(posL/4));
+      scene.add(prod);
+    }
+  }
+}
+
+// POS Registers on counter
 const pScrMat = new THREE.MeshStandardMaterial({color:0x111111,roughness:0.2,metalness:0.5});
 const pDspMat = new THREE.MeshStandardMaterial({color:0x2244aa,emissive:0x112244,emissiveIntensity:0.4});
 for(let r=0;r<3;r++){
   const rz=posSZ+6+r*10, ry=3;
-  {const _m=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.2,0.8),pScrMat);_m.position.set(posX,ry+0.1,rz);scene.add(_m);}
-  {const _m=new THREE.Mesh(new THREE.BoxGeometry(0.15,1.2,0.15),pScrMat);_m.position.set(posX,ry+0.8,rz);scene.add(_m);}
-  const scr=new THREE.Mesh(new THREE.BoxGeometry(0.12,1.5,2),pScrMat);scr.position.set(posX-0.2,ry+1.8,rz);scr.castShadow=true;scene.add(scr);
-  const dsp=new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.2),pDspMat);dsp.rotation.y=-Math.PI/2;dsp.position.set(posX-0.3,ry+1.8,rz);scene.add(dsp);
+  // Monitor base
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.2,0.8),pScrMat);
+  base.position.set(posX,ry+0.1,rz);scene.add(base);
+  // Neck
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.15,1.0,0.15),pScrMat);
+  neck.position.set(posX,ry+0.7,rz);scene.add(neck);
+  // Screen (faces -X into store)
+  const scr=new THREE.Mesh(new THREE.BoxGeometry(0.12,1.3,1.8),pScrMat);
+  scr.position.set(posX-0.2,ry+1.6,rz);scr.castShadow=true;scene.add(scr);
+  // Display glow
+  const dsp=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.0),pDspMat);
+  dsp.rotation.y=-Math.PI/2;dsp.position.set(posX-0.3,ry+1.6,rz);scene.add(dsp);
   // Card reader
-  {const _m=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.3,0.5),new THREE.MeshStandardMaterial({color:0x222222,roughness:0.3,metalness:0.4}));_m.position.set(posX-1.5,ry+0.15,rz);scene.add(_m);}
-  const rs=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.35),new THREE.MeshStandardMaterial({color:0x44aa66,emissive:0x22aa44,emissiveIntensity:0.3}));
+  const rd = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.3,0.5),
+    new THREE.MeshStandardMaterial({color:0x222222,roughness:0.3,metalness:0.4}));
+  rd.position.set(posX-1.5,ry+0.15,rz);scene.add(rd);
+  // Reader screen
+  const rs=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.35),
+    new THREE.MeshStandardMaterial({color:0x44aa66,emissive:0x22aa44,emissiveIntensity:0.3}));
   rs.rotation.y=-Math.PI/2;rs.position.set(posX-1.9,ry+0.35,rz);scene.add(rs);
+  // Scanner
+  const scanner = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.5,0.3),
+    new THREE.MeshStandardMaterial({color:0x333333,roughness:0.3,metalness:0.3}));
+  scanner.position.set(posX+0.8,ry+0.25,rz+1);scene.add(scanner);
 }
 
-// ==================== YELLOW: COFFEE + FOUNTAIN SODA (bottom-right near entrance) ====================
+// ==================== YELLOW: COFFEE + FOUNTAIN SODA ISLAND (bottom-right near entrance) ====================
+// Like reference: dark island counter, multiple coffee urn dispensers, condiment area, cups
 const cofX = ox+W-16, cofZ = oz+D-5;
-const cofMat = new THREE.MeshStandardMaterial({color:0x5a5a5a, roughness:0.25, metalness:0.3});
-mkBox(cofX, 0, cofZ, 14, 3, 3, cofMat);
+const cofDark = new THREE.MeshStandardMaterial({color:0x2a1a0a, roughness:0.5, metalness:0.2});
+const cofTop = new THREE.MeshStandardMaterial({color:0x3a2a1a, roughness:0.3, metalness:0.2});
+const cofWhite = new THREE.MeshStandardMaterial({color:0xf0ece8, roughness:0.3});
 
-// Coffee machines (3)
-for(let i=0;i<3;i++){
-  const cx=cofX-5+i*3;
-  const cm=new THREE.Mesh(new THREE.BoxGeometry(2,2.5,1.8),new THREE.MeshStandardMaterial({color:0x222222,roughness:0.3,metalness:0.5}));
-  cm.position.set(cx,4.25,cofZ-0.3);cm.castShadow=true;scene.add(cm);
-  // Pot
-  {const _m=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.35,1,8),new THREE.MeshStandardMaterial({color:0x111111,roughness:0.2,metalness:0.3}));_m.position.set(cx,3.5,cofZ+0.8);scene.add(_m);}
-  {const _m=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.3,0.6,8),new THREE.MeshStandardMaterial({color:0x4a2c0a,roughness:0.9}));_m.position.set(cx,3.3,cofZ+0.8);scene.add(_m);}
+// Island counter base (dark wood)
+mkBox(cofX, 0, cofZ, 14, 2.8, 4, cofDark);
+// Counter top (lighter surface)
+mkBox(cofX, 2.8, cofZ, 14.5, 0.15, 4.5, cofWhite);
+
+// Snack shelves on front face of island
+for(let sh=0;sh<2;sh++){
+  const sy = 0.5 + sh*1;
+  mkBox(cofX, sy, cofZ+2.2, 12, 0.06, 0.06, cofDark);
+  const snackColors = [0xcc0000,0xffaa00,0x00aa44,0x2266cc,0xff4488];
+  for(let s=0;s<8;s++){
+    const snack = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.6,0.5),
+      new THREE.MeshStandardMaterial({color:snackColors[(sh+s)%5],roughness:0.6}));
+    snack.position.set(cofX-5+s*1.4, sy+0.38, cofZ+2.2);
+    scene.add(snack);
+  }
 }
 
-// Fountain soda dispenser
-const sodaX=cofX+5;
-const soda=new THREE.Mesh(new THREE.BoxGeometry(3,3,2),new THREE.MeshStandardMaterial({color:0xcccccc,roughness:0.2,metalness:0.5}));
-soda.position.set(sodaX,4.5,cofZ-0.2);soda.castShadow=true;scene.add(soda);
+// Coffee urn dispensers (4 tall black cylinders with gold/brown accents — like the reference)
+for(let i=0;i<4;i++){
+  const cx = cofX - 4 + i * 2.8;
+  // Urn body (tall cylinder)
+  const urn = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.55, 2, 10),
+    new THREE.MeshStandardMaterial({color:0x111111, roughness:0.3, metalness:0.4}));
+  urn.position.set(cx, 4, cofZ-0.5); urn.castShadow=true; scene.add(urn);
+  // Urn lid
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 0.3, 10),
+    new THREE.MeshStandardMaterial({color:0x222222, roughness:0.3, metalness:0.5}));
+  lid.position.set(cx, 5.15, cofZ-0.5); scene.add(lid);
+  // Gold band
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.15, 10),
+    new THREE.MeshStandardMaterial({color:0xc8a84e, roughness:0.2, metalness:0.6}));
+  band.position.set(cx, 4.5, cofZ-0.5); scene.add(band);
+  // Spigot/tap
+  const tap = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.3),
+    new THREE.MeshStandardMaterial({color:0x888888, metalness:0.6}));
+  tap.position.set(cx, 3.3, cofZ); scene.add(tap);
+  // Drip tray
+  mkBox(cx, 2.95, cofZ+0.3, 0.8, 0.05, 0.5, new THREE.MeshStandardMaterial({color:0x333333, roughness:0.3, metalness:0.4}));
+}
+
+// Fountain soda dispenser (right side of island)
+const sodaX = cofX + 5;
+const sodaBody = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.5, 1.5),
+  new THREE.MeshStandardMaterial({color:0xd0d0d0, roughness:0.15, metalness:0.5}));
+sodaBody.position.set(sodaX, 4.2, cofZ-0.3); sodaBody.castShadow=true; scene.add(sodaBody);
+// Soda nozzles
 for(let n=0;n<4;n++){
-  {const _m=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.5,6),new THREE.MeshStandardMaterial({color:0x444444,metalness:0.6}));_m.position.set(sodaX-1+n*0.7,3.25,cofZ+0.5);scene.add(_m);}
+  const nz = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.4,6),
+    new THREE.MeshStandardMaterial({color:0x444444, metalness:0.6}));
+  nz.position.set(sodaX-0.8+n*0.55, 3.2, cofZ+0.2); scene.add(nz);
 }
-mkBox(sodaX,3,cofZ+0.5,3,0.1,1,new THREE.MeshStandardMaterial({color:0x999999,roughness:0.3,metalness:0.4}));
+// Brand panels
 const brandC=[0xcc0000,0x004499,0x00aa00,0xff8800];
-for(let b=0;b<4;b++){const bp=new THREE.Mesh(new THREE.PlaneGeometry(0.6,1.5),new THREE.MeshStandardMaterial({color:brandC[b]}));bp.position.set(sodaX-1+b*0.7,5,cofZ+1.05);scene.add(bp);}
-// Cups & lids
-{const _m=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.45,2,8),new THREE.MeshStandardMaterial({color:0xeeeeee,roughness:0.5}));_m.position.set(sodaX+2,4,cofZ);scene.add(_m);}
-{const _m=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.5,8),new THREE.MeshStandardMaterial({color:0x333333,roughness:0.4}));_m.position.set(sodaX+2,3.25,cofZ+0.8);scene.add(_m);}
+for(let b=0;b<4;b++){
+  const bp=new THREE.Mesh(new THREE.PlaneGeometry(0.5,1.2),
+    new THREE.MeshStandardMaterial({color:brandC[b]}));
+  bp.position.set(sodaX-0.8+b*0.55,4.5,cofZ+0.48); scene.add(bp);
+}
+// Drip tray
+mkBox(sodaX, 2.95, cofZ+0.3, 2.5, 0.05, 0.5, new THREE.MeshStandardMaterial({color:0x999999,roughness:0.3,metalness:0.4}));
+
+// Cup dispensers (tower of stacked cups)
+for(let c=0;c<2;c++){
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.4,1.8,8),
+    new THREE.MeshStandardMaterial({color:c===0?0xeeeeee:0xdd4444, roughness:0.5}));
+  cup.position.set(cofX+5+1.5+c*1.2, 3.9, cofZ-0.5); scene.add(cup);
+}
+// Lid dispenser
+const lidD = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.4,8),
+  new THREE.MeshStandardMaterial({color:0x333333,roughness:0.4}));
+lidD.position.set(cofX+5+1.5, 3.15, cofZ+0.5); scene.add(lidD);
+
+// Condiment/stir station
+mkBox(cofX-6, 2.95, cofZ, 2, 0.5, 2, new THREE.MeshStandardMaterial({color:0x444444, roughness:0.4}));
+// Sugar packets, stirrers
+for(let c=0;c<3;c++){
+  const pkt = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.3,0.6),
+    new THREE.MeshStandardMaterial({color:[0xffffff,0xffee88,0x88ccff][c], roughness:0.5}));
+  pkt.position.set(cofX-6.5+c*0.6, 3.4, cofZ); scene.add(pkt);
+}
 
 // ==================== GONDOLA SHELVING ====================
-const gRows=5, gLen=28, gSpc=7, gSX=ox+14, gSZ=oz+24;
-for(let row=0;row<gRows;row++){
-  const gz=gSZ+row*gSpc;
-  const sp=new THREE.Mesh(new THREE.BoxGeometry(gLen,5.5,0.3),gondolaMat);
-  sp.position.set(gSX+gLen/2,2.75,gz);sp.castShadow=true;scene.add(sp);
-  for(let s=0;s<4;s++){
-    const sy=0.8+s*1.3;
+// Split into 2 sections per row with a 3' aisle gap between them
+const gRows=5, gSecLen=12, gGap=3, gSpc=7, gSX=ox+14, gSZ=oz+24;
+const pegMat = new THREE.MeshStandardMaterial({color:0x1a2a3a, roughness:0.6, metalness:0.3});
+const shelfEdgeMat = new THREE.MeshStandardMaterial({color:0xcc3300, roughness:0.5});
+const gondEndMat = new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.4, metalness:0.3});
+
+function makeGondolaSection(sx, gz, sLen, row, sec){
+  // Pegboard spine
+  const sp=new THREE.Mesh(new THREE.BoxGeometry(sLen,5.8,0.15),pegMat);
+  sp.position.set(sx+sLen/2,2.9,gz);sp.castShadow=true;scene.add(sp);
+  // Top cap
+  mkBox(sx+sLen/2, 5.8, gz, sLen, 0.15, 0.6, gondEndMat);
+  // Shelves (5 levels, both sides)
+  for(let s=0;s<5;s++){
+    const sy=0.5+s*1.1;
     for(let side=-1;side<=1;side+=2){
-      const sh=new THREE.Mesh(new THREE.BoxGeometry(gLen,0.1,1.3),shelfMat);
-      sh.position.set(gSX+gLen/2,sy,gz+side*0.8);sh.receiveShadow=true;scene.add(sh);
+      const sh=new THREE.Mesh(new THREE.BoxGeometry(sLen,0.08,1.2),shelfMat);
+      sh.position.set(sx+sLen/2,sy,gz+side*0.75);sh.receiveShadow=true;scene.add(sh);
+      const edge=new THREE.Mesh(new THREE.BoxGeometry(sLen,0.15,0.04),shelfEdgeMat);
+      edge.position.set(sx+sLen/2,sy+0.04,gz+side*1.35);scene.add(edge);
     }
   }
-  for(let e=0;e<=1;e++){const ec=new THREE.Mesh(new THREE.BoxGeometry(0.3,5.5,3),gondolaMat);ec.position.set(gSX+e*gLen,2.75,gz);ec.castShadow=true;scene.add(ec);}
-  const pColors=[0xcc3333,0x3366cc,0x33aa55,0xeeaa22,0x9944aa,0xdd6633];
-  for(let s=0;s<4;s++)for(let p=0;p<8;p++){
-    const pw=gLen/8;
-    const pr=new THREE.Mesh(new THREE.BoxGeometry(pw-0.3,1,1),new THREE.MeshStandardMaterial({color:pColors[(row+s+p)%6],roughness:0.7}));
-    pr.position.set(gSX+pw*p+pw/2,0.9+s*1.3+0.55,gz+0.8);scene.add(pr);
+  // End caps
+  for(let e=0;e<=1;e++){
+    const ex = sx + e*sLen;
+    const ec=new THREE.Mesh(new THREE.BoxGeometry(0.15,5.8,3.2),gondEndMat);
+    ec.position.set(ex,2.9,gz);ec.castShadow=true;scene.add(ec);
+    for(let es=0;es<4;es++){
+      const esy = 0.8+es*1.3;
+      mkBox(ex+(e===0?-0.7:0.7), esy, gz, 1.2, 0.06, 2.5, shelfMat);
+      for(let ep=0;ep<3;ep++){
+        const epr = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.8,0.7),
+          new THREE.MeshStandardMaterial({color:[0xcc0000,0xffaa00,0x0066cc,0x00aa44,0xff4488][(row+es+ep+sec)%5], roughness:0.5}));
+        epr.position.set(ex+(e===0?-0.7:0.7), esy+0.46, gz-0.8+ep*0.8);scene.add(epr);
+      }
+    }
+    const signColors = [0xcc2222,0x2255aa,0xee8800,0x22aa44,0x8833cc];
+    const ecSign = new THREE.Mesh(new THREE.BoxGeometry(0.1,1,2.5),
+      new THREE.MeshStandardMaterial({color:signColors[(row+sec+e)%5], roughness:0.4}));
+    ecSign.position.set(ex+(e===0?-0.8:0.8), 5.5, gz);scene.add(ecSign);
   }
+  // Products (both sides)
+  const pColors=[0xcc3333,0x3366cc,0x33aa55,0xeeaa22,0x9944aa,0xdd6633,0x44bbcc,0xff6688];
+  for(let s=0;s<5;s++){
+    for(let side=-1;side<=1;side+=2){
+      for(let p=0;p<Math.floor(sLen/2.8);p++){
+        const pw=sLen/Math.floor(sLen/2.8);
+        const pr=new THREE.Mesh(new THREE.BoxGeometry(pw-0.3,0.85,0.9),
+          new THREE.MeshStandardMaterial({color:pColors[(row+s+p+sec+Math.abs(side))%8],roughness:0.6}));
+        pr.position.set(sx+pw*p+pw/2,0.5+s*1.1+0.5,gz+side*0.75);scene.add(pr);
+      }
+    }
+  }
+}
+
+for(let row=0;row<gRows;row++){
+  const gz=gSZ+row*gSpc;
+  // Section A (left half)
+  makeGondolaSection(gSX, gz, gSecLen, row, 0);
+  // Section B (right half, after gap)
+  makeGondolaSection(gSX+gSecLen+gGap, gz, gSecLen, row, 1);
 }
 
 // ==================== PEOPLE ====================
@@ -369,11 +560,15 @@ function mkPerson(px,py,pz,rot,shirt,pants,skin,isEmp){
 mkPerson(posX+2.5, 0, posSZ+10, -Math.PI/2, 0x2255aa, 0x222222, skinA, true);
 mkPerson(posX+2.5, 0, posSZ+22, -Math.PI/2, 0x2255aa, 0x222222, skinB, true);
 
-// 2 Food workers behind show kitchen counter (standing between counter and back wall)
-mkPerson(fcStartX+10, 0, fcZ-3, Math.PI, 0x2255aa, 0x222222, skinC, true);
-mkPerson(fcStartX+25, 0, fcZ-3, Math.PI, 0x2255aa, 0x222222, skinA, true);
+// 2 Food case workers behind show kitchen counter (between counter and back wall, facing customers)
+mkPerson(fcStartX+8, 0, fcZ-3, Math.PI, 0x2255aa, 0x222222, skinC, true);
+mkPerson(fcStartX+22, 0, fcZ-3, Math.PI, 0x2255aa, 0x222222, skinA, true);
 
-// Customers
+// 2 Customers at food cases (standing in front, facing the cases)
+mkPerson(fcStartX+8, 0, fcZ+4, 0, 0xcc6633, 0x333333, skinB, false);
+mkPerson(fcStartX+20, 0, fcZ+4, 0.1, 0x44aacc, 0x444444, skinC, false);
+
+// Customers browsing
 mkPerson(ox+22, 0, oz+32, 0.3, 0xcc3333, 0x333366, skinA, false);        // browsing gondola
 mkPerson(ox+32, 0, oz+42, -0.5, 0x33aa55, 0x444444, skinB, false);       // browsing gondola
 mkPerson(ox+10, 0, oz+44, 1.2, 0xff8800, 0x222244, skinC, false);        // at left coolers
@@ -381,19 +576,327 @@ mkPerson(posX-3.5, 0, posSZ+10, Math.PI/2, 0x8844aa, 0x333333, skinA, false);  /
 mkPerson(posX-3.5, 0, posSZ+22, Math.PI/2, 0xddaa33, 0x444444, skinB, false);  // at POS
 mkPerson(cofX-2, 0, cofZ, 0, 0x5588cc, 0x222222, skinC, false);           // at coffee
 
-// ==================== ROOF / CANOPY / SIGN ====================
+// ==================== BAR STOOL SEATING (LEFT side of entrance door only) ====================
+const barZ = oz + D - 1.5;
+const barStartX = ox + sfLeft + 1;
+const barEndX = doorX - 4; // stop well before the entrance door
+const barLen = barEndX - barStartX;
+const barMat = new THREE.MeshStandardMaterial({color:0x5a4a3a, roughness:0.4, metalness:0.1});
+const stoolMetalMat = new THREE.MeshStandardMaterial({color:0x555555, roughness:0.3, metalness:0.5});
+const stoolSeatMat = new THREE.MeshStandardMaterial({color:0x2a2a2a, roughness:0.6});
+
+// Narrow counter/table attached to window (left side only)
+mkBox(barStartX + barLen/2, 0, barZ, barLen, 3.5, 1.5, barMat);
+
+// Bar stools (4 stools on the left side)
+const numStools = 4;
+const stoolSpacing = barLen / (numStools + 1);
+for(let i=0; i<numStools; i++){
+  const sx = barStartX + stoolSpacing * (i+1);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 0.15, 10), stoolMetalMat);
+  base.position.set(sx, 0.08, barZ - 1.5); scene.add(base);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.2, 8), stoolMetalMat);
+  pole.position.set(sx, 1.2, barZ - 1.5); scene.add(pole);
+  const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.5, 0.25, 10), stoolSeatMat);
+  seat.position.set(sx, 2.4, barZ - 1.5); seat.castShadow = true; scene.add(seat);
+  const footRest = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.04, 6, 12), stoolMetalMat);
+  footRest.rotation.x = Math.PI/2;
+  footRest.position.set(sx, 0.8, barZ - 1.5); scene.add(footRest);
+}
+
+// Seated customers on bar stools (3 of the 6 stools occupied, facing the window/outside)
+function mkSeatedPerson(px, pz, rot, shirt, pants, skin){
+  const g = new THREE.Group();
+  const pantsMat = new THREE.MeshStandardMaterial({color:pants, roughness:0.7});
+  const shirtMat = new THREE.MeshStandardMaterial({color:shirt, roughness:0.6});
+  // Legs (bent at seat level, hanging down)
+  for(let s=-1;s<=1;s+=2){
+    // Upper leg (horizontal on seat)
+    const ul = new THREE.Mesh(new THREE.BoxGeometry(0.45,0.45,0.8), pantsMat);
+    ul.position.set(s*0.25, 2.4, -0.3); g.add(ul);
+    // Lower leg (hanging down)
+    const ll = new THREE.Mesh(new THREE.BoxGeometry(0.4,1.5,0.4), pantsMat);
+    ll.position.set(s*0.25, 1.5, -0.6); g.add(ll);
+    // Shoe
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.2,0.6),
+      new THREE.MeshStandardMaterial({color:0x222222, roughness:0.5}));
+    shoe.position.set(s*0.25, 0.7, -0.5); g.add(shoe);
+  }
+  // Torso
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.1,1.7,0.6), shirtMat);
+  torso.position.set(0, 3.6, -0.1); torso.castShadow = true; g.add(torso);
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42,8,8), skin);
+  head.position.set(0, 4.85, -0.1); head.castShadow = true; g.add(head);
+  // Hair
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.44,8,4,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0x3a2718, roughness:0.8}));
+  hair.position.set(0, 4.95, -0.1); g.add(hair);
+  // Arms (resting on counter)
+  for(let s=-1;s<=1;s+=2){
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3,1.4,0.3), shirtMat);
+    arm.position.set(s*0.75, 3.3, 0.1); g.add(arm);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.15,6,6), skin);
+    hand.position.set(s*0.75, 2.6, 0.3); g.add(hand);
+  }
+  g.position.set(px, 0, pz); g.rotation.y = rot;
+  scene.add(g); return g;
+}
+
+// 2 customers seated at bar stools (left side), facing the window
+mkSeatedPerson(barStartX + stoolSpacing*1, barZ-1.5, Math.PI, 0xcc4444, 0x333366, skinA);
+mkSeatedPerson(barStartX + stoolSpacing*3, barZ-1.5, Math.PI, 0x44aa88, 0x444444, skinB);
+
+// ==================== ROOF / EXTERIOR DESIGN ====================
+// Matching the Rock and Roll Store rendering: cream walls, red horizontal trim bands, dark brick accents
+
 const roof=new THREE.Mesh(new THREE.BoxGeometry(W+3,0.8,D+3),roofMat);
 roof.position.set(0,H+0.4,0);roof.castShadow=true;scene.add(roof);
-const pH=2;
-mkWall(ox-1,oz-1,W+2,wallT,pH,wallExtMat).position.y+=H;
-mkWall(ox-1,oz+D,W+2,wallT,pH,wallExtMat).position.y+=H;
-mkWall(ox-1,oz-1,wallT,D+2,pH,wallExtMat).position.y+=H;
-mkWall(ox+W,oz-1,wallT,D+2,pH,wallExtMat).position.y+=H;
 
-const canopy=new THREE.Mesh(new THREE.BoxGeometry(sfW+6,0.4,8),new THREE.MeshStandardMaterial({color:0xcc2222,roughness:0.5,metalness:0.2}));
-canopy.position.set(ox+sfLeft+sfW/2,H-1,oz+D+4);canopy.castShadow=true;scene.add(canopy);
-for(let i=0;i<4;i++){const p=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,H-1,8),new THREE.MeshStandardMaterial({color:0x888888,metalness:0.4}));p.position.set(ox+sfLeft+3+i*(sfW/3),(H-1)/2,oz+D+7);p.castShadow=true;scene.add(p);}
-{const _m=new THREE.Mesh(new THREE.BoxGeometry(20,3,0.5),signMat);_m.position.set(ox+sfLeft+sfW/2,H+1.5,oz+D+8);_m.castShadow=true;scene.add(_m);}
+// Parapet
+const pH=2;
+const parapetMat = new THREE.MeshStandardMaterial({color:0xddd5c5, roughness:0.6});
+mkWall(ox-1,oz-1,W+2,wallT,pH,parapetMat).position.y+=H;
+mkWall(ox-1,oz+D,W+2,wallT,pH,parapetMat).position.y+=H;
+mkWall(ox-1,oz-1,wallT,D+2,pH,parapetMat).position.y+=H;
+mkWall(ox+W,oz-1,wallT,D+2,pH,parapetMat).position.y+=H;
+
+// Red horizontal trim bands on front facade
+const redTrimMat = new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.4, metalness:0.2});
+// Lower trim band
+mkBox(0, H-0.5, oz+D+0.3, W+2, 0.6, 0.3, redTrimMat);
+// Upper trim band (at parapet)
+mkBox(0, H+1.8, oz+D+0.3, W+2, 0.4, 0.3, redTrimMat);
+// Side trims
+mkBox(0, H-0.5, oz-0.3, W+2, 0.6, 0.3, redTrimMat);
+mkBox(ox-0.3, H-0.5, 0, 0.3, 0.6, D+2, redTrimMat);
+mkBox(ox+W+0.3, H-0.5, 0, 0.3, 0.6, D+2, redTrimMat);
+
+// Dark brick accent columns on front facade (flanking storefront)
+const brickMat = new THREE.MeshStandardMaterial({color:0x4a3a2a, roughness:0.8});
+mkBox(ox+sfLeft-2, 0, oz+D+0.3, 3, H, 1, brickMat);
+mkBox(ox+sfRight+2, 0, oz+D+0.3, 3, H, 1, brickMat);
+// Corner accent pillars
+mkBox(ox-0.5, 0, oz+D+0.3, 2, H, 1, brickMat);
+mkBox(ox+W+0.5, 0, oz+D+0.3, 2, H, 1, brickMat);
+
+// ==================== ENTRANCE CANOPY (curved like rendering) ====================
+// Wider curved canopy over the entrance - red with dark fascia
+const canopyW = sfW + 8;
+const canopyMat2 = new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.4, metalness:0.2});
+const canopyDark = new THREE.MeshStandardMaterial({color:0x3a2a1a, roughness:0.5});
+
+// Main canopy slab
+const canopy = new THREE.Mesh(new THREE.BoxGeometry(canopyW, 0.5, 10), canopyMat2);
+canopy.position.set(doorX, H-0.5, oz+D+5); canopy.castShadow = true; scene.add(canopy);
+// Dark fascia under canopy
+mkBox(doorX, H-1.5, oz+D+10, canopyW, 1.5, 0.5, canopyDark);
+// Curved top element above entrance (half-cylinder shape approximated)
+for(let a=0; a<6; a++){
+  const angle = (a/5) * Math.PI;
+  const cx = Math.cos(angle) * 6;
+  const cy = Math.sin(angle) * 3;
+  const seg = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.4, 0.8), canopyDark);
+  seg.position.set(doorX + cx, H+1+cy, oz+D+10);
+  seg.rotation.z = -angle + Math.PI/2;
+  scene.add(seg);
+}
+
+// Canopy support columns
+for(let i=-1;i<=1;i+=2){
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, H-1, 8),
+    new THREE.MeshStandardMaterial({color:0x666666, metalness:0.4}));
+  col.position.set(doorX+i*(canopyW/2-2), (H-1)/2, oz+D+9);
+  col.castShadow = true; scene.add(col);
+}
+
+// ==================== ROCK AND ROLL LOGO ====================
+// Vinyl record (dark circle) with red text overlay
+const logoX = doorX, logoY = H+2, logoZ = oz+D+10.3;
+
+// Vinyl record disc (black circle)
+const vinylGeo = new THREE.CylinderGeometry(4, 4, 0.3, 32);
+const vinylMat = new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.3, metalness:0.4});
+const vinyl = new THREE.Mesh(vinylGeo, vinylMat);
+vinyl.rotation.x = Math.PI/2;
+vinyl.position.set(logoX, logoY, logoZ);
+scene.add(vinyl);
+
+// Record grooves (rings)
+for(let r=1; r<4; r++){
+  const groove = new THREE.Mesh(
+    new THREE.TorusGeometry(r*1, 0.02, 4, 32),
+    new THREE.MeshStandardMaterial({color:0x2a2a2a, roughness:0.2, metalness:0.5}));
+  groove.position.set(logoX, logoY, logoZ+0.2);
+  scene.add(groove);
+}
+
+// Record center label (red)
+const labelGeo = new THREE.CylinderGeometry(1, 1, 0.35, 16);
+const labelMat = new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.4});
+const label = new THREE.Mesh(labelGeo, labelMat);
+label.rotation.x = Math.PI/2;
+label.position.set(logoX, logoY, logoZ+0.05);
+scene.add(label);
+
+// Guitar neck (red bar extending from record)
+const guitarNeck = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 0.35),
+  new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.3}));
+guitarNeck.position.set(logoX+4, logoY+0.5, logoZ+0.05);
+guitarNeck.rotation.z = -0.15;
+scene.add(guitarNeck);
+
+// Guitar headstock
+const headstock = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.2, 0.35),
+  new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.3}));
+headstock.position.set(logoX+7.2, logoY+0.1, logoZ+0.05);
+scene.add(headstock);
+
+// "Store Rock and Roll" text backing (white glow panel behind text area)
+const textBg = new THREE.Mesh(new THREE.PlaneGeometry(7, 3),
+  new THREE.MeshStandardMaterial({color:0xcc2222, emissive:0x881111, emissiveIntensity:0.3}));
+textBg.position.set(logoX-0.5, logoY-0.3, logoZ+0.25);
+scene.add(textBg);
+
+// Logo spotlight
+const logoLight = new THREE.SpotLight(0xffffff, 0.5, 20, Math.PI/4);
+logoLight.position.set(logoX, logoY+6, logoZ+3);
+logoLight.target.position.set(logoX, logoY, logoZ);
+scene.add(logoLight); scene.add(logoLight.target);
+
+// ==================== GAS PUMP CANOPY + PUMPS ====================
+// Two stacks of 5 pumps each, under a large canopy in front of the store
+const pumpCanopyX = doorX;
+const pumpCanopyZ = oz + D + 35; // well in front of store
+const pumpCanopyW = 50;
+const pumpCanopyD = 24;
+const pumpCanopyH = 16;
+
+// Canopy structure (tall flat roof on columns)
+const gcMat = new THREE.MeshStandardMaterial({color:0xdddddd, roughness:0.3, metalness:0.3});
+const gcRoofMat = new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.4, metalness:0.2}); // red to match store
+
+// Canopy roof
+const gcRoof = new THREE.Mesh(new THREE.BoxGeometry(pumpCanopyW, 0.8, pumpCanopyD), gcRoofMat);
+gcRoof.position.set(pumpCanopyX, pumpCanopyH, pumpCanopyZ);
+gcRoof.castShadow = true; scene.add(gcRoof);
+
+// Canopy fascia band (darker red trim)
+mkBox(pumpCanopyX, pumpCanopyH-1, pumpCanopyZ, pumpCanopyW+0.5, 1.2, pumpCanopyD+0.5,
+  new THREE.MeshStandardMaterial({color:0xaa1a1a, roughness:0.4, metalness:0.2}));
+
+// Canopy columns (4 tall steel columns)
+const colPositions = [
+  [-pumpCanopyW/2+3, -pumpCanopyD/2+2],
+  [pumpCanopyW/2-3, -pumpCanopyD/2+2],
+  [-pumpCanopyW/2+3, pumpCanopyD/2-2],
+  [pumpCanopyW/2-3, pumpCanopyD/2-2]
+];
+for(const [cx,cz] of colPositions){
+  const col = new THREE.Mesh(new THREE.BoxGeometry(1.5, pumpCanopyH, 1.5), gcMat);
+  col.position.set(pumpCanopyX+cx, pumpCanopyH/2, pumpCanopyZ+cz);
+  col.castShadow = true; scene.add(col);
+}
+
+// Canopy underside lights
+for(let lx=-2;lx<=2;lx++){
+  for(let lz=-1;lz<=1;lz++){
+    const cl = new THREE.PointLight(0xffffff, 0.15, 15);
+    cl.position.set(pumpCanopyX+lx*10, pumpCanopyH-1.5, pumpCanopyZ+lz*8);
+    scene.add(cl);
+  }
+}
+
+// Gas pump islands and pumps
+const pumpMat = new THREE.MeshStandardMaterial({color:0xdddddd, roughness:0.3, metalness:0.4});
+const pumpScreenMat = new THREE.MeshStandardMaterial({color:0x111111, roughness:0.2, metalness:0.3});
+const pumpAccentMat = new THREE.MeshStandardMaterial({color:0xcc2222, roughness:0.4});
+const islandMat = new THREE.MeshStandardMaterial({color:0xbbbbbb, roughness:0.5});
+
+function makeGasPump(px, pz, facingDir){
+  // Island base
+  // Pump body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2, 5, 1.5), pumpMat);
+  body.position.set(px, 2.5, pz); body.castShadow = true; scene.add(body);
+  // Screen area
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 0.1), pumpScreenMat);
+  screen.position.set(px, 4, pz+facingDir*0.8); scene.add(screen);
+  // Screen glow
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.8),
+    new THREE.MeshStandardMaterial({color:0x44aaff, emissive:0x2288cc, emissiveIntensity:0.3}));
+  glow.position.set(px, 4, pz+facingDir*0.85);
+  scene.add(glow);
+  // Red accent stripe
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.3, 1.6), pumpAccentMat);
+  stripe.position.set(px, 3, pz); scene.add(stripe);
+  // Nozzle holders (3 hose slots)
+  for(let n=-1;n<=1;n++){
+    const nozzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.3),
+      new THREE.MeshStandardMaterial({color:0x333333, roughness:0.4, metalness:0.5}));
+    nozzle.position.set(px+n*0.6, 2.5, pz+facingDir*0.8);
+    scene.add(nozzle);
+    // Hose
+    const hose = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.5, 6),
+      new THREE.MeshStandardMaterial({color:0x111111, roughness:0.6}));
+    hose.position.set(px+n*0.6, 1.5, pz+facingDir*0.9);
+    hose.rotation.z = 0.3*n;
+    scene.add(hose);
+  }
+  // Pump top
+  mkBox(px, 5, pz, 2.1, 0.3, 1.6, pumpAccentMat);
+}
+
+// Stack 1 (left): 5 pumps in a row
+const stack1X = pumpCanopyX - 12;
+const stack1Z = pumpCanopyZ;
+// Island base for stack 1
+mkBox(stack1X, 0, stack1Z, 3, 0.5, 22, islandMat);
+for(let i=0;i<5;i++){
+  makeGasPump(stack1X, stack1Z-8+i*4, 1);
+}
+
+// Stack 2 (right): 5 pumps in a row
+const stack2X = pumpCanopyX + 12;
+const stack2Z = pumpCanopyZ;
+mkBox(stack2X, 0, stack2Z, 3, 0.5, 22, islandMat);
+for(let i=0;i<5;i++){
+  makeGasPump(stack2X, stack2Z-8+i*4, 1);
+}
+
+// Parking lot surface under canopy
+const parkingMat = new THREE.MeshStandardMaterial({color:0x555555, roughness:0.8});
+const parking = new THREE.Mesh(new THREE.PlaneGeometry(pumpCanopyW+20, pumpCanopyD+30), parkingMat);
+parking.rotation.x = -Math.PI/2;
+parking.position.set(pumpCanopyX, 0.01, pumpCanopyZ);
+parking.receiveShadow = true;
+scene.add(parking);
+
+// Cars in parking area (simple box cars)
+function makeCar(cx, cz, rot, bodyColor){
+  const g = new THREE.Group();
+  const bMat = new THREE.MeshStandardMaterial({color:bodyColor, roughness:0.3, metalness:0.4});
+  // Body
+  const bd = new THREE.Mesh(new THREE.BoxGeometry(6, 2, 3), bMat);
+  bd.position.set(0, 1.5, 0); bd.castShadow = true; g.add(bd);
+  // Cabin
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.5, 2.8),
+    new THREE.MeshStandardMaterial({color:0x88aabb, transparent:true, opacity:0.4, roughness:0.1}));
+  cab.position.set(-0.3, 3, 0); g.add(cab);
+  // Wheels
+  const wheelMat = new THREE.MeshStandardMaterial({color:0x222222, roughness:0.6});
+  for(let wx=-1;wx<=1;wx+=2) for(let wz=-1;wz<=1;wz+=2){
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.4, 8), wheelMat);
+    w.rotation.x = Math.PI/2;
+    w.position.set(wx*2, 0.6, wz*1.6); g.add(w);
+  }
+  g.position.set(cx, 0, cz); g.rotation.y = rot;
+  scene.add(g);
+}
+
+makeCar(pumpCanopyX-5, pumpCanopyZ-4, 0, 0x2266aa);
+makeCar(pumpCanopyX+5, pumpCanopyZ+4, Math.PI, 0x882222);
+makeCar(pumpCanopyX-20, oz+D+15, Math.PI/2, 0x228844);
+makeCar(pumpCanopyX+20, oz+D+15, -Math.PI/2, 0x444444);
 
 // ==================== ORBIT CONTROLS ====================
 let isRot=false,isPan=false,prev={x:0,y:0};
